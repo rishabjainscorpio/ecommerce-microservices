@@ -7,6 +7,7 @@ import com.myorg.orderservice.dto.OrderRequest;
 import com.myorg.orderservice.model.Order;
 import com.myorg.orderservice.model.OrderLineItems;
 import com.myorg.orderservice.repository.OrderRepository;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,7 +30,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final WebClient.Builder webClientBuilder;
 
-    public void placeOrder(OrderRequest orderRequest) {
+    public String placeOrder(OrderRequest orderRequest) {
         Order order = new Order();
         order.setOrderNumber(UUID.randomUUID().toString());
         List<OrderLineItems> orderLineItems = orderRequest.getOrderLineItemsRequestList()
@@ -60,6 +61,7 @@ public class OrderService {
 
         if (isInStock) {
             orderRepository.save(order);
+            return "Order placed successfully";
         } else {
             throw new IllegalArgumentException("Product is not in stock. Please try again");
         }
