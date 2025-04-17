@@ -8,6 +8,8 @@ import com.myorg.orderservice.model.Order;
 import com.myorg.orderservice.model.OrderLineItems;
 import com.myorg.orderservice.repository.OrderRepository;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +31,7 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final WebClient.Builder webClientBuilder;
+    private final Tracer tracer;
 
     public String placeOrder(OrderRequest orderRequest) {
         Order order = new Order();
@@ -44,8 +47,8 @@ public class OrderService {
 
         boolean isInStock = false;
         ObjectMapper objectMapper = new ObjectMapper();
-
-        try {
+        Span inventoryService = tracer.nextSpan().name("InventoryServiceStock");
+        try (Tracer.SpanInScope spanInScope = tracer.withSpan(inventoryService.start())){
             String inventoryRequestStr = objectMapper.writeValueAsString(inventoryRequests);
             String encodedJson = URLEncoder.encode(inventoryRequestStr, StandardCharsets.UTF_8);
             isInStock = Boolean.TRUE.equals(webClientBuilder.build().get()
@@ -57,6 +60,8 @@ public class OrderService {
                     .block());
         } catch (Exception e) {
             log.error("Error while checking product stock in inventory. Message: " + e.getMessage());
+        } finally {
+            inventoryService.end();
         }
 
         if (isInStock) {
